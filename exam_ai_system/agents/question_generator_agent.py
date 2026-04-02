@@ -1,103 +1,105 @@
-import json
-from llm.ollama_client import OllamaClient
+from llm.factory import create_llm_client
 from schemas.exam_schema import Question
 
 
 class QuestionGeneratorAgent:
-
-    def __init__(self):
-        self.llm = OllamaClient()
+    def __init__(self, max_retries=3, provider=None):
+        self.llm = create_llm_client(provider=provider)
+        self.max_retries = max_retries
 
     def run(self, topic, exam_type, level, num_questions):
+        system_prompt = """
+You generate high-quality certification-style multiple choice exam questions.
+Return valid JSON only.
+""".strip()
 
         prompt = f"""
-Generate exactly {num_questions} multiple choice questions.
+Create exactly {num_questions} multiple choice questions for the topic "{topic}".
 
-Training Topic: {topic}
-Exam Type: {exam_type}
-Certification Level: {level}
+Exam type: {exam_type}
+Certification level: {level}
 
-Difficulty Guidelines:
-- Beginner: basic concepts and definitions
+Difficulty guidelines:
+- Beginner: basic concepts, terminology, and straightforward recall
 - Intermediate: conceptual understanding and practical application
-- Advanced: complex scenarios, deeper understanding, or problem-solving questions
+- Advanced: scenario-based reasoning, tradeoffs, and deeper problem solving
 
-Return ONLY valid JSON in the following format:
-
-[
-  {{
-    "question": "question text",
-    "options": ["option1", "option2", "option3", "option4"],
-    "answer": "correct option text"
-  }}
-]
+Return a JSON object with this shape:
+{{
+  "questions": [
+    {{
+      "question": "question text",
+      "options": ["option1", "option2", "option3", "option4"],
+      "answer": "one option copied exactly",
+      "difficulty": "Easy | Medium | Hard",
+      "explanation": "one short explanation of why the answer is correct"
+    }}
+  ]
+}}
 
 Rules:
-- Exactly {num_questions} questions
-- Each question must have exactly 4 options
-- The answer must match one of the options
-- The questions MUST match the certification level: {level}
-- Do not include explanations
-- Do not include text outside the JSON
-"""
+- Return exactly {num_questions} questions.
+- Each question must have exactly 4 distinct options.
+- The answer must exactly match one option.
+- Keep questions aligned with the requested certification level.
+- Avoid duplicate or near-duplicate questions.
+- Do not include markdown or any text outside the JSON object.
+""".strip()
 
-        response = self.llm.generate(prompt)
+        last_error = None
 
-        print("\nOLLAMA RAW OUTPUT:\n", response)
-
-        # Try direct JSON parsing
-        try:
-            data = json.loads(response)
-
-        except json.JSONDecodeError:
-
-            print("JSON parsing failed. Attempting to extract JSON block...")
-
-            # Extract JSON array if model included extra text
-            start = response.find("[")
-            end = response.rfind("]") + 1
-
-            if start == -1 or end == -1:
-                raise Exception("LLM did not return valid JSON")
-
-            json_block = response[start:end]
-
+        for _ in range(self.max_retries):
             try:
-                data = json.loads(json_block)
-            except json.JSONDecodeError:
-                print("Invalid JSON returned by LLM. Regenerating...")
-                return self.run(topic)
+                data = self.llm.generate_json(prompt, system_prompt=system_prompt)
+                questions = self._parse_questions(data)
+
+                if len(questions) >= num_questions:
+                    return questions[:num_questions]
+
+                last_error = ValueError(
+                    f"Expected {num_questions} valid questions, got {len(questions)}."
+                )
+            except (ValueError, TypeError, KeyError) as exc:
+                last_error = exc
+
+        raise ValueError(
+            f"Question generation failed after {self.max_retries} attempts: {last_error}"
+        )
+
+    def _parse_questions(self, data):
+        items = data.get("questions", [])
+
+        if not isinstance(items, list):
+            raise ValueError("JSON payload is missing a 'questions' list.")
 
         questions = []
 
-        for item in data:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
 
-            if (
-                isinstance(item, dict)
-                and "question" in item
-                and "options" in item
-                and "answer" in item
-            ):
+            question_text = str(item.get("question", "")).strip()
+            answer = str(item.get("answer", "")).strip()
+            difficulty = str(item.get("difficulty", "")).strip().title() or None
+            explanation = str(item.get("explanation", "")).strip() or None
+            raw_options = item.get("options", [])
 
-                options = item["options"]
+            if not isinstance(raw_options, list):
+                continue
 
-                if isinstance(options, list) and len(options) == 4:
+            options = [str(option).strip() for option in raw_options if str(option).strip()]
 
-                    questions.append(
-                        Question(
-                            question=item["question"],
-                            options=options,
-                            answer=item["answer"]
-                        )
-                    )
+            if not question_text or len(options) != 4 or answer not in options:
+                continue
 
-        print("Parsed questions:", len(questions))
-
-        # Retry generation if LLM failed
-        if len(questions) < 5:
-
-            print("Retrying question generation due to insufficient questions...")
-
-            return self.run(topic, exam_type, level, num_questions)
+            questions.append(
+                Question(
+                    question=question_text,
+                    options=options,
+                    answer=answer,
+                    difficulty=difficulty,
+                    explanation=explanation,
+                )
+            )
 
         return questions

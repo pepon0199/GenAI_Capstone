@@ -1,5 +1,22 @@
 import streamlit as st
 from orchestrator.exam_orchestrator import ExamOrchestratorAgent
+import os
+from pathlib import Path
+from config import get_default_provider, validate_provider
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
+
+default_provider = get_default_provider()
+provider_options = ["groq", "ollama"]
+
+if default_provider not in provider_options:
+    default_provider = "groq"
 
 st.set_page_config(
     page_title="AI Certification Exam",
@@ -7,22 +24,47 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("AI Certification Exam Generator")
+css_path = Path(__file__).parent / "styles" / "main.css"
+st.markdown(
+    f"<style>{css_path.read_text(encoding='utf-8')}</style>",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="hero-card">
+        <div class="hero-kicker">AI Exam Workspace</div>
+        <div class="hero-title">AI Certification Exam Generator</div>
+        <p class="hero-copy">Configure your exam, choose your inference provider, and complete the full assessment in one guided workflow.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # Sidebar (Professional Exam Info)
 with st.sidebar:
 
-    st.header("Exam Information")
+    st.header("Exam Control Panel")
 
-    st.write("""
-**Certification:** AI Fundamentals  
-**Number of Questions:** 5  
-**Passing Score:** 70%
-""")
+    selected_provider = st.selectbox(
+        "LLM Provider",
+        provider_options,
+        index=provider_options.index(default_provider),
+    )
 
-    st.write("---")
+    provider_status = validate_provider(selected_provider)
+    active_model = provider_status.model
 
-    st.write("""
+    st.caption(f"Provider: {selected_provider}")
+    st.caption(f"Model: {active_model}")
+
+    if provider_status.is_ready:
+        st.success("Provider configuration is ready.")
+    else:
+        for error in provider_status.errors:
+            st.error(error)
+
+    st.markdown("""
 **Instructions**
 
 • Select the best answer for each question  
@@ -30,21 +72,57 @@ with st.sidebar:
 • Click **Submit Exam** when finished
 """)
 
-topic = st.text_input("Training Topic")
-
-exam_type = st.selectbox(
-    "Exam Type",
-    ["Practice Exam", "Certification Exam", "Assessment Test"]
+st.markdown(
+    """
+    <div class="section-title">1. Configure Your Exam</div>
+    <div class="section-copy">Choose the topic, exam style, and question count before generating the exam.</div>
+    """,
+    unsafe_allow_html=True,
 )
 
-level = st.selectbox(
-    "Certification Level",
-    ["Beginner", "Intermediate", "Advanced"]
-)
+setup_col1, setup_col2 = st.columns([1.5, 1])
 
-num_questions = st.selectbox(
-    "Number of Questions",
-    [5, 10, 15]
+with setup_col1:
+    topic = st.text_input("Training Topic")
+
+with setup_col2:
+    num_questions = st.selectbox(
+        "Number of Questions",
+        [5, 10, 15]
+    )
+
+flow_col1, flow_col2 = st.columns(2)
+
+with flow_col1:
+    exam_type = st.selectbox(
+        "Exam Type",
+        ["Practice Exam", "Certification Exam", "Assessment Test"]
+    )
+
+with flow_col2:
+    level = st.selectbox(
+        "Certification Level",
+        ["Beginner", "Intermediate", "Advanced"]
+    )
+
+with st.sidebar:
+    st.markdown(
+        f"""
+        <div class="sidebar-meta">
+            <strong>Certification:</strong> AI Fundamentals<br>
+            <strong>Questions:</strong> {num_questions}<br>
+            <strong>Passing Score:</strong> 70%
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.markdown(
+    """
+    <div class="section-title">2. Generate And Complete</div>
+    <div class="section-copy">Generate the exam once the setup looks right, then answer each question and submit for scoring.</div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -55,71 +133,185 @@ if "exam" not in st.session_state:
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
+if "score" not in st.session_state:
+    st.session_state.score = 0
+
+if "percentage" not in st.session_state:
+    st.session_state.percentage = 0.0
+
+if "current_question" not in st.session_state:
+    st.session_state.current_question = 0
+
+if "answers" not in st.session_state:
+    st.session_state.answers = {}
+
+if "celebration_shown" not in st.session_state:
+    st.session_state.celebration_shown = False
+
 # Generate Exam
 if st.button("Generate Exam"):
 
     if topic.strip() == "":
         st.warning("Please enter a topic.")
+    elif not provider_status.is_ready:
+        st.error("Fix the provider configuration before generating an exam.")
     else:
 
         with st.spinner("Generating AI Certification Exam..."):
 
-            orchestrator = ExamOrchestratorAgent()
-            exam = orchestrator.generate_exam(topic, exam_type, level, num_questions)
+            try:
+                orchestrator = ExamOrchestratorAgent(provider=selected_provider)
+                exam = orchestrator.generate_exam(topic, exam_type, level, num_questions)
 
-            st.session_state.exam = exam
-            st.session_state.submitted = False
+                st.session_state.exam = exam
+                st.session_state.submitted = False
+                st.session_state.score = 0
+                st.session_state.percentage = 0.0
+                st.session_state.current_question = 0
+                st.session_state.answers = {}
+                st.session_state.celebration_shown = False
+            except Exception as exc:
+                st.session_state.exam = None
+                st.error(f"Exam generation failed: {exc}")
 
 # Display Exam
 if st.session_state.exam:
 
     exam = st.session_state.exam
 
-    st.header(f"Certification Exam: {exam.topic}")
+    st.markdown(
+        f"""
+        <div class="summary-bar">
+            <div style="display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.85rem;">
+                <div class="summary-tile">
+                    <div class="summary-label">Topic</div>
+                    <div class="summary-value">{exam.topic}</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Exam Type</div>
+                    <div class="summary-value">{exam_type}</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Level</div>
+                    <div class="summary-value">{level}</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Questions</div>
+                    <div class="summary-value">{len(exam.questions)}</div>
+                </div>
+                <div class="summary-tile">
+                    <div class="summary-label">Provider</div>
+                    <div class="summary-value">{selected_provider}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.write(f"Total questions generated: {len(exam.questions)}")
+    st.markdown(
+        """
+        <div class="section-title">3. Take The Exam</div>
+        <div class="section-copy">Move through each question below and submit once you have reviewed all your answers.</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    progress_bar = st.progress(0)
+    if exam.review_notes:
+        st.info("Quality review notes were recorded during generation.")
 
-    # Questions
-    for i, q in enumerate(exam.questions, 1):
+    total_questions = len(exam.questions)
+    current_index = min(st.session_state.current_question, total_questions - 1)
+    st.session_state.current_question = current_index
+    current_question_number = current_index + 1
+    current_answer_key = f"question_{current_question_number}"
+    progress_bar = st.progress(current_question_number / total_questions)
 
-        progress = i / len(exam.questions)
-        progress_bar.progress(progress)
+    def save_current_answer():
+        selected = st.session_state.get(current_answer_key)
+        if selected is not None:
+            st.session_state.answers[current_answer_key] = selected
 
-        with st.container():
+    saved_answer = st.session_state.answers.get(current_answer_key)
 
-            st.subheader(f"Question {i}")
+    if saved_answer is not None and current_answer_key not in st.session_state:
+        st.session_state[current_answer_key] = saved_answer
 
-            st.write(q.question)
+    navigator_col1, navigator_col2, navigator_col3 = st.columns([1, 1.2, 1])
 
-            choice = st.radio(
-                f"Select answer for Question {i}",
-                q.options,
-                key=f"question_{i}"
-            )
+    with navigator_col1:
+        if st.button("Previous", disabled=current_index == 0):
+            save_current_answer()
+            st.session_state.current_question = max(0, current_index - 1)
+            st.rerun()
 
-            difficulty = q.difficulty.lower()
+    with navigator_col2:
+        st.markdown(
+            f"""
+            <div style="text-align:center; padding-top:0.35rem; color:#52607a; font-weight:700;">
+                Question {current_question_number} of {total_questions}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-            if difficulty == "easy":
-                st.success(f"Difficulty: {q.difficulty}")
+    with navigator_col3:
+        if st.button("Next", disabled=current_index >= total_questions - 1):
+            save_current_answer()
+            st.session_state.current_question = min(total_questions - 1, current_index + 1)
+            st.rerun()
 
-            elif difficulty == "medium":
-                st.warning(f"Difficulty: {q.difficulty}")
+    q = exam.questions[current_index]
 
+    with st.container():
+        st.markdown('<div class="question-shell">', unsafe_allow_html=True)
+
+        st.markdown(
+            f'<div class="question-kicker">Question {current_question_number}</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.write(q.question)
+
+        st.radio(
+            f"Select answer for Question {current_question_number}",
+            q.options,
+            index=None,
+            key=current_answer_key,
+            on_change=save_current_answer,
+            disabled=st.session_state.submitted,
+        )
+
+        difficulty = (q.difficulty or "Medium").lower()
+
+        if difficulty == "easy":
+            st.success(f"Difficulty: {q.difficulty}")
+        elif difficulty == "medium":
+            st.warning(f"Difficulty: {q.difficulty}")
+        else:
+            st.error(f"Difficulty: {q.difficulty}")
+
+        if st.session_state.submitted and exam_type == "Practice Exam":
+            user_choice = st.session_state.answers.get(current_answer_key)
+
+            if user_choice == q.answer:
+                st.success(f"Your answer: {user_choice}")
             else:
-                st.error(f"Difficulty: {q.difficulty}")
+                st.error(f"Your answer: {user_choice}")
 
-            st.divider()
+            st.info(f"Correct answer: {q.answer}")
+
+        st.divider()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # Submit Exam
     if st.button("Submit Exam"):
 
         score = 0
+        save_current_answer()
 
         for i, q in enumerate(exam.questions, 1):
-
-            user_choice = st.session_state.get(f"question_{i}")
+            user_choice = st.session_state.answers.get(f"question_{i}")
 
             if user_choice == q.answer:
                 score += 1
@@ -127,17 +319,26 @@ if st.session_state.exam:
         total = len(exam.questions)
         percentage = (score / total) * 100
 
+        st.session_state.submitted = True
+        st.session_state.score = score
+        st.session_state.percentage = percentage
+        st.session_state.celebration_shown = False
+        st.rerun()
+
+    if st.session_state.submitted:
         st.header("Certification Result")
 
         col1, col2 = st.columns(2)
 
-        col1.metric("Score", f"{score} / {total}")
-        col2.metric("Percentage", f"{percentage:.2f}%")
+        col1.metric("Score", f"{st.session_state.score} / {len(exam.questions)}")
+        col2.metric("Percentage", f"{st.session_state.percentage:.2f}%")
 
-        if percentage >= 70:
+        if st.session_state.percentage >= 70:
 
             st.success("🎉 Congratulations! You passed the AI Certification.")
-            st.balloons()
+            if not st.session_state.celebration_shown:
+                st.balloons()
+                st.session_state.celebration_shown = True
 
         else:
 

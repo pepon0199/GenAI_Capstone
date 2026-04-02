@@ -1,67 +1,52 @@
 from agents.question_generator_agent import QuestionGeneratorAgent
 from agents.fact_checker_agent import FactCheckerAgent
-from agents.difficulty_evaluator_agent import DifficultyEvaluatorAgent
 from agents.exam_builder_agent import ExamBuilderAgent
 from agents.exam_checker_agent import ExamCheckerAgent
 
 
 class ExamOrchestratorAgent:
 
-    def __init__(self):
+    def __init__(self, provider=None):
 
-        self.q_agent = QuestionGeneratorAgent()
-        self.f_agent = FactCheckerAgent()
-        self.d_agent = DifficultyEvaluatorAgent()
+        self.q_agent = QuestionGeneratorAgent(provider=provider)
+        self.f_agent = FactCheckerAgent(provider=provider)
         self.b_agent = ExamBuilderAgent()
         self.c_agent = ExamCheckerAgent()
 
     def generate_exam(self, topic, exam_type, level, num_questions):
 
-        valid_questions = []
-        attempts = 0
+        approved_questions = []
+        review_notes = []
         max_attempts = 3
 
         # map certification level → expected difficulty
-        expected = {
-            "Beginner": "Easy",
-            "Intermediate": "Medium",
-            "Advanced": "Hard"
-        }
+        for _ in range(max_attempts):
 
-        target_difficulty = expected.get(level, "Medium")
+            remaining = num_questions - len(approved_questions)
 
-        while len(valid_questions) < num_questions and attempts < max_attempts:
+            if remaining <= 0:
+                break
 
-            needed = max(10, num_questions * 2)
+            needed = max(remaining + 3, remaining * 2)
 
-            new_questions = self.q_agent.run(
+            generated_questions = self.q_agent.run(
                 topic,
                 exam_type,
                 level,
                 needed
             )
 
-            # Fact check
-            checked_questions = self.f_agent.run(new_questions)
+            valid_questions = self.c_agent.validate_questions(generated_questions, level)
+            reviewed_questions, notes = self.f_agent.run(valid_questions, topic, level)
+            review_notes.extend(notes)
 
-            # Evaluate difficulty
-            checked_questions = self.d_agent.run(checked_questions)
+            merged_questions = approved_questions + reviewed_questions
+            approved_questions = self.c_agent.validate_questions(merged_questions, level)
 
-            # Keep only questions matching certification level
-            for q in checked_questions:
-                if q.difficulty == target_difficulty:
-                    valid_questions.append(q)
-
-                # fallback acceptance if still lacking questions
-                elif level == "Advanced" and q.difficulty == "Medium":
-                    valid_questions.append(q)
-
-            attempts += 1
-
-        questions = valid_questions[:num_questions]
+        questions = approved_questions[:num_questions]
 
         exam = self.b_agent.run(topic, questions)
 
-        exam = self.c_agent.run(exam)
+        exam.review_notes = review_notes
 
-        return exam
+        return self.c_agent.run(exam, expected_count=num_questions)
