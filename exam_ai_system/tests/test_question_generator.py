@@ -14,8 +14,12 @@ class FakeLLM:
         return response
 
 
-def test_question_generator_retries_then_succeeds():
-    question_generator_module.create_llm_client = lambda provider=None: FakeLLM([])
+def test_question_generator_retries_then_succeeds(monkeypatch):
+    monkeypatch.setattr(
+        question_generator_module,
+        "create_llm_client",
+        lambda provider=None: FakeLLM([]),
+    )
     agent = question_generator_module.QuestionGeneratorAgent(max_retries=2)
     agent.llm = FakeLLM(
         [
@@ -41,8 +45,12 @@ def test_question_generator_retries_then_succeeds():
     assert questions[0].answer == "A language"
 
 
-def test_question_generator_raises_after_retry_limit():
-    question_generator_module.create_llm_client = lambda provider=None: FakeLLM([])
+def test_question_generator_raises_after_retry_limit(monkeypatch):
+    monkeypatch.setattr(
+        question_generator_module,
+        "create_llm_client",
+        lambda provider=None: FakeLLM([]),
+    )
     agent = question_generator_module.QuestionGeneratorAgent(max_retries=2)
     agent.llm = FakeLLM([ValueError("bad payload"), ValueError("still bad")])
 

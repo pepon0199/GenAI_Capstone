@@ -39,12 +39,12 @@ class GroqClient:
 
         try:
             response = self.client.chat.completions.create(**payload)
+            return response.choices[0].message.content
         except Exception as exc:
             raise LLMProviderError(
-                f"Groq request failed for model '{self.model}': {exc}"
+                f"Groq request failed or returned an unexpected response for model "
+                f"'{self.model}': {exc}"
             ) from exc
-
-        return response.choices[0].message.content
 
     def generate_json(self, prompt, system_prompt=None):
         content = self.generate(

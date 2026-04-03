@@ -28,12 +28,12 @@ class OllamaClient:
 
         try:
             response = ollama.chat(**payload)
+            return response["message"]["content"]
         except Exception as exc:
             raise LLMProviderError(
-                f"Ollama request failed for model '{self.model}': {exc}"
+                f"Ollama request failed or returned an unexpected response for model "
+                f"'{self.model}': {exc}"
             ) from exc
-
-        return response["message"]["content"]
 
     def generate_json(self, prompt, system_prompt=None):
         content = self.generate(
