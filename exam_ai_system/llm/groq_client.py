@@ -1,6 +1,8 @@
 import json
 import os
 
+from llm.errors import LLMProviderError
+
 
 class GroqClient:
     def __init__(self, model=None):
@@ -35,8 +37,14 @@ class GroqClient:
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
-        response = self.client.chat.completions.create(**payload)
-        return response.choices[0].message.content
+        try:
+            response = self.client.chat.completions.create(**payload)
+            return response.choices[0].message.content
+        except Exception as exc:
+            raise LLMProviderError(
+                f"Groq request failed or returned an unexpected response for model "
+                f"'{self.model}': {exc}"
+            ) from exc
 
     def generate_json(self, prompt, system_prompt=None):
         content = self.generate(
@@ -48,4 +56,4 @@ class GroqClient:
         try:
             return json.loads(content)
         except json.JSONDecodeError as exc:
-            raise ValueError("Groq did not return valid JSON.") from exc
+            raise LLMProviderError("Groq did not return valid JSON.") from exc

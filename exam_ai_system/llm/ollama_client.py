@@ -3,6 +3,8 @@ import os
 
 import ollama
 
+from llm.errors import LLMProviderError
+
 
 class OllamaClient:
     def __init__(self, model=None):
@@ -24,8 +26,14 @@ class OllamaClient:
         if json_mode:
             payload["format"] = "json"
 
-        response = ollama.chat(**payload)
-        return response["message"]["content"]
+        try:
+            response = ollama.chat(**payload)
+            return response["message"]["content"]
+        except Exception as exc:
+            raise LLMProviderError(
+                f"Ollama request failed or returned an unexpected response for model "
+                f"'{self.model}': {exc}"
+            ) from exc
 
     def generate_json(self, prompt, system_prompt=None):
         content = self.generate(
@@ -37,4 +45,4 @@ class OllamaClient:
         try:
             return json.loads(content)
         except json.JSONDecodeError as exc:
-            raise ValueError("LLM did not return valid JSON.") from exc
+            raise LLMProviderError("Ollama did not return valid JSON.") from exc
