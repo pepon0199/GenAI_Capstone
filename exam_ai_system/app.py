@@ -3,6 +3,8 @@ from orchestrator.exam_orchestrator import ExamOrchestratorAgent
 import os
 from pathlib import Path
 from config import get_default_provider, validate_provider
+from llm.errors import LLMProviderError, to_user_message
+from logging_utils import configure_logging, get_logger
 
 try:
     from dotenv import load_dotenv
@@ -11,6 +13,9 @@ except ImportError:
 
 if load_dotenv:
     load_dotenv()
+
+configure_logging()
+logger = get_logger(__name__)
 
 default_provider = get_default_provider()
 provider_options = ["groq", "ollama"]
@@ -160,6 +165,14 @@ if st.button("Generate Exam"):
         with st.spinner("Generating AI Certification Exam..."):
 
             try:
+                logger.info(
+                    "exam_generation_started provider=%s topic=%s exam_type=%s level=%s num_questions=%s",
+                    selected_provider,
+                    topic,
+                    exam_type,
+                    level,
+                    num_questions,
+                )
                 orchestrator = ExamOrchestratorAgent(provider=selected_provider)
                 exam = orchestrator.generate_exam(topic, exam_type, level, num_questions)
 
@@ -170,9 +183,32 @@ if st.button("Generate Exam"):
                 st.session_state.current_question = 0
                 st.session_state.answers = {}
                 st.session_state.celebration_shown = False
+                logger.info(
+                    "exam_generation_succeeded provider=%s topic=%s generated_questions=%s",
+                    selected_provider,
+                    topic,
+                    len(exam.questions),
+                )
+            except LLMProviderError as exc:
+                st.session_state.exam = None
+                logger.exception(
+                    "exam_generation_provider_error provider=%s topic=%s exam_type=%s level=%s",
+                    selected_provider,
+                    topic,
+                    exam_type,
+                    level,
+                )
+                st.error(to_user_message(exc))
             except Exception as exc:
                 st.session_state.exam = None
-                st.error(f"Exam generation failed: {exc}")
+                logger.exception(
+                    "exam_generation_failed provider=%s topic=%s exam_type=%s level=%s",
+                    selected_provider,
+                    topic,
+                    exam_type,
+                    level,
+                )
+                st.error(to_user_message(exc))
 
 # Display Exam
 if st.session_state.exam:
@@ -323,6 +359,15 @@ if st.session_state.exam:
         st.session_state.score = score
         st.session_state.percentage = percentage
         st.session_state.celebration_shown = False
+        logger.info(
+            "exam_submitted provider=%s exam_type=%s level=%s score=%s total=%s percentage=%.2f",
+            selected_provider,
+            exam_type,
+            level,
+            score,
+            total,
+            percentage,
+        )
         st.rerun()
 
     if st.session_state.submitted:
