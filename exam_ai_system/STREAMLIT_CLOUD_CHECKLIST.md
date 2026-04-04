@@ -30,12 +30,16 @@ LLM_PROVIDER = "groq"
 GROQ_API_KEY = "your_real_groq_api_key"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 OLLAMA_MODEL = "mistral"
+SUPABASE_URL = "https://your-project-ref.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY = "your_supabase_service_role_key"
 ```
 
 Minimum required for cloud deployment:
 - `LLM_PROVIDER`
 - `GROQ_API_KEY`
 - `GROQ_MODEL`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 ## 4. Local Verification Before Deploy
 
@@ -55,11 +59,14 @@ python -m pytest -q
 Verify these flows manually:
 - Provider selector works
 - Groq configuration shows as ready
+- Registration works
+- Login/logout works
 - Exam generation works
 - Flash-card navigation works
 - Practice exam answer reveal works
 - Submit locks answers
 - Balloons show only once after passing
+- Submitted exams appear in recent history
 
 ## 5. Streamlit Community Cloud Setup
 
@@ -78,11 +85,13 @@ After deployment:
 
 - Open the app URL
 - Confirm the sidebar shows the correct provider/model
+- Create an account or log in
 - Generate a practice exam
 - Answer at least one question
 - Submit the exam
 - Verify score/result rendering
 - Verify correct-answer reveal only appears for practice mode
+- Verify recent exam history loads after refresh/re-login
 
 ## 7. Known Deployment Guidance
 
@@ -90,6 +99,7 @@ After deployment:
 - Keep Ollama as a local development option
 - Do not rely on `.env` in Streamlit Community Cloud
 - Use app secrets instead of committing credentials
+- Use Supabase for persistent auth and exam history instead of local SQLite
 
 ## 8. If Deployment Fails
 
