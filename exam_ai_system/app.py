@@ -246,8 +246,22 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    recent_attempts = history_service.list_attempts(st.session_state.user_id, limit=5)
+    history_error = None
+    try:
+        recent_attempts = history_service.list_attempts(st.session_state.user_id, limit=5)
+    except RuntimeError as exc:
+        logger.warning(
+            "exam_history_load_failed user_id=%s error=%s",
+            st.session_state.user_id,
+            exc,
+        )
+        recent_attempts = []
+        history_error = str(exc)
+
     with st.expander("Recent Exam History", expanded=False):
+        if history_error:
+            st.caption(history_error)
+            st.divider()
         if recent_attempts:
             for attempt in recent_attempts:
                 st.markdown(
@@ -506,16 +520,27 @@ if st.session_state.exam:
         st.session_state.score = score
         st.session_state.percentage = percentage
         st.session_state.celebration_shown = False
-        history_service.record_attempt(
-            user_id=st.session_state.user_id,
-            topic=exam.topic,
-            exam_type=exam_type,
-            level=level,
-            question_count=total,
-            score=score,
-            percentage=percentage,
-            provider=selected_provider,
-        )
+        try:
+            history_service.record_attempt(
+                user_id=st.session_state.user_id,
+                topic=exam.topic,
+                exam_type=exam_type,
+                level=level,
+                question_count=total,
+                score=score,
+                percentage=percentage,
+                provider=selected_provider,
+            )
+        except RuntimeError as exc:
+            logger.warning(
+                "exam_history_record_failed user_id=%s topic=%s error=%s",
+                st.session_state.user_id,
+                exam.topic,
+                exc,
+            )
+            st.warning(
+                "Your exam was submitted, but the attempt could not be saved to history right now."
+            )
         logger.info(
             "exam_submitted provider=%s exam_type=%s level=%s score=%s total=%s percentage=%.2f",
             selected_provider,

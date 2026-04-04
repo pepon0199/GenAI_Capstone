@@ -40,6 +40,26 @@ class FakeQuery:
         return type("Response", (), {"data": filtered})()
 
 
+class FailingQuery:
+    def insert(self, payload):
+        return self
+
+    def select(self, fields):
+        return self
+
+    def eq(self, column, value):
+        return self
+
+    def order(self, column, desc=False):
+        return self
+
+    def limit(self, value):
+        return self
+
+    def execute(self):
+        raise RuntimeError("supabase unavailable")
+
+
 class FakeClient:
     def __init__(self):
         self.store = []
@@ -69,3 +89,42 @@ def test_record_and_list_attempts():
     assert len(attempts) == 1
     assert attempts[0]["topic"] == "Python"
     assert attempts[0]["score"] == 4
+
+
+def test_record_attempt_wraps_storage_failures():
+    class FailingClient:
+        def table(self, table_name):
+            return FailingQuery()
+
+    history_service = ExamHistoryService(lambda: FailingClient())
+
+    try:
+        history_service.record_attempt(
+            user_id="user-1",
+            topic="Python",
+            exam_type="Practice Exam",
+            level="Beginner",
+            question_count=5,
+            score=4,
+            percentage=80.0,
+            provider="groq",
+        )
+    except RuntimeError as exc:
+        assert "Unable to save exam history" in str(exc)
+    else:
+        raise AssertionError("Expected RuntimeError for history save failure")
+
+
+def test_list_attempts_wraps_storage_failures():
+    class FailingClient:
+        def table(self, table_name):
+            return FailingQuery()
+
+    history_service = ExamHistoryService(lambda: FailingClient())
+
+    try:
+        history_service.list_attempts("user-1")
+    except RuntimeError as exc:
+        assert "Unable to load exam history" in str(exc)
+    else:
+        raise AssertionError("Expected RuntimeError for history load failure")
