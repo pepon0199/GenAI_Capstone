@@ -273,7 +273,10 @@ if st.session_state.exam:
     if saved_answer is not None and current_answer_key not in st.session_state:
         st.session_state[current_answer_key] = saved_answer
 
-    navigator_col1, navigator_col2, navigator_col3 = st.columns([1, 1.2, 1])
+    navigator_col1, navigator_col2, navigator_col3 = st.columns(
+        [1, 1.2, 1],
+        vertical_alignment="center",
+    )
 
     with navigator_col1:
         if st.button("Previous", disabled=current_index == 0):
@@ -284,7 +287,7 @@ if st.session_state.exam:
     with navigator_col2:
         st.markdown(
             f"""
-            <div style="text-align:center; padding-top:0.35rem; color:#52607a; font-weight:700;">
+            <div class="navigator-caption">
                 Question {current_question_number} of {total_questions}
             </div>
             """,
@@ -292,10 +295,12 @@ if st.session_state.exam:
         )
 
     with navigator_col3:
-        if st.button("Next", disabled=current_index >= total_questions - 1):
-            save_current_answer()
-            st.session_state.current_question = min(total_questions - 1, current_index + 1)
-            st.rerun()
+        next_spacer, next_button_col = st.columns([1.8, 1])
+        with next_button_col:
+            if st.button("Next", disabled=current_index >= total_questions - 1):
+                save_current_answer()
+                st.session_state.current_question = min(total_questions - 1, current_index + 1)
+                st.rerun()
 
     q = exam.questions[current_index]
 
