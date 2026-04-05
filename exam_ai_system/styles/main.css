@@ -91,6 +91,61 @@
     margin-bottom: 1rem;
 }
 
+.auth-shell {
+    margin-bottom: 1rem;
+}
+
+.auth-intro {
+    padding: 1.2rem 1.25rem;
+    border-radius: var(--app-radius-md);
+    border: 1px solid rgba(194, 109, 31, 0.14);
+    background: linear-gradient(140deg, rgba(255, 248, 238, 0.95), rgba(240, 248, 255, 0.95));
+    box-shadow: 0 14px 30px rgba(23, 32, 51, 0.05);
+}
+
+.auth-kicker {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--app-accent);
+    margin-bottom: 0.45rem;
+}
+
+.auth-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--app-ink);
+    margin-bottom: 0.35rem;
+}
+
+.auth-copy {
+    color: var(--app-subtle);
+    line-height: 1.55;
+}
+
+.auth-card {
+    min-height: 5.6rem;
+    padding: 1rem 1rem 0.25rem 1rem;
+    border-radius: var(--app-radius-md);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 252, 0.96));
+    border: 1px solid rgba(23, 32, 51, 0.08);
+    box-shadow: 0 12px 26px rgba(23, 32, 51, 0.04);
+    margin-bottom: 0.8rem;
+}
+
+.auth-card-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--app-ink);
+    margin-bottom: 0.25rem;
+}
+
+.auth-card-copy {
+    color: var(--app-subtle);
+    line-height: 1.5;
+}
+
 [data-testid="stTextInput"],
 [data-testid="stSelectbox"] {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 252, 0.95));
@@ -236,6 +291,89 @@
 }
 
 .sidebar-meta strong {
+    color: var(--app-ink);
+}
+
+[data-testid="stPopover"] > div > button {
+    min-height: 2.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(23, 32, 51, 0.10);
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--app-ink);
+    font-weight: 700;
+    box-shadow: 0 10px 24px rgba(23, 32, 51, 0.05);
+}
+
+.profile-popover {
+    min-width: 15rem;
+}
+
+.profile-name {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--app-ink);
+    margin-bottom: 0.15rem;
+}
+
+.profile-email {
+    color: var(--app-subtle);
+    margin-bottom: 0.85rem;
+    word-break: break-word;
+}
+
+.profile-divider {
+    height: 1px;
+    background: rgba(23, 32, 51, 0.08);
+    margin: 0.6rem 0 0.8rem 0;
+}
+
+.profile-settings {
+    color: var(--app-muted);
+    font-size: 0.92rem;
+    margin-bottom: 0.75rem;
+}
+
+[data-testid="stDialog"] [data-testid="stVerticalBlock"] > div {
+    gap: 0.8rem;
+}
+
+.history-card {
+    padding: 1rem 1.05rem;
+    border-radius: var(--app-radius-md);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 252, 0.96));
+    border: 1px solid rgba(23, 32, 51, 0.08);
+    box-shadow: 0 10px 24px rgba(23, 32, 51, 0.04);
+}
+
+.history-card-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--app-ink);
+    margin-bottom: 0.2rem;
+}
+
+.history-card-meta,
+.history-card-provider,
+.history-card-date {
+    color: var(--app-subtle);
+    line-height: 1.55;
+}
+
+.history-card-score {
+    color: var(--app-ink);
+    font-weight: 700;
+    margin: 0.35rem 0;
+}
+
+[data-testid="stExpander"] {
+    border: 1px solid rgba(23, 32, 51, 0.08);
+    border-radius: var(--app-radius-md);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 249, 252, 0.96));
+    overflow: hidden;
+}
+
+[data-testid="stExpander"] details summary {
+    font-weight: 700;
     color: var(--app-ink);
 }
 
