@@ -1,3 +1,4 @@
+from html import escape
 from pathlib import Path
 
 import streamlit as st
@@ -48,7 +49,7 @@ if default_provider not in provider_options:
 
 st.set_page_config(
     page_title="AI Certification Exam",
-    page_icon="🎓",
+    page_icon=":mortar_board:",
     layout="wide"
 )
 
@@ -101,9 +102,31 @@ if not st.session_state.logged_in:
         unsafe_allow_html=True,
     )
 
-    login_tab, register_tab = st.tabs(["Login", "Register"])
+    st.markdown(
+        """
+        <div class="auth-shell">
+            <div class="auth-intro">
+                <div class="auth-kicker">Secure Access</div>
+                <div class="auth-title">Keep your exam progress and history in one place.</div>
+                <div class="auth-copy">Sign in with your email to continue, or create an account to start tracking attempts across sessions.</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with login_tab:
+    auth_col1, auth_col2 = st.columns(2)
+
+    with auth_col1:
+        st.markdown(
+            """
+            <div class="auth-card">
+                <div class="auth-card-title">Login</div>
+                <div class="auth-card-copy">Access your saved exam history and continue where you left off.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         login_email = st.text_input("Email", key="login_email")
         login_password = st.text_input("Password", type="password", key="login_password")
 
@@ -122,7 +145,16 @@ if not st.session_state.logged_in:
             except Exception as exc:
                 st.error(f"Login failed: {exc}")
 
-    with register_tab:
+    with auth_col2:
+        st.markdown(
+            """
+            <div class="auth-card">
+                <div class="auth-card-title">Register</div>
+                <div class="auth-card-copy">Create an account to save your attempts and view recent scores anytime.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         register_display_name = st.text_input("Display Name", key="register_display_name")
         register_email = st.text_input("Email", key="register_email")
         register_password = st.text_input(
@@ -152,6 +184,74 @@ if not st.session_state.logged_in:
 
     st.stop()
 
+safe_display_name = escape(st.session_state.display_name or "")
+safe_user_email = escape(st.session_state.user_email or "")
+
+history_error = None
+try:
+    recent_attempts = history_service.list_attempts(st.session_state.user_id, limit=10)
+except RuntimeError as exc:
+    logger.warning(
+        "exam_history_load_failed user_id=%s error=%s",
+        st.session_state.user_id,
+        exc,
+    )
+    recent_attempts = []
+    history_error = str(exc)
+
+
+@st.dialog("Exam History")
+def show_exam_history_dialog():
+    if history_error:
+        st.warning(history_error)
+
+    if recent_attempts:
+        for attempt in recent_attempts:
+            st.markdown(
+                f"""
+                <div class="history-card">
+                    <div class="history-card-title">{escape(attempt["topic"])}</div>
+                    <div class="history-card-meta">{escape(attempt["exam_type"])} | {escape(attempt["level"])}</div>
+                    <div class="history-card-score">Score: {attempt["score"]}/{attempt["question_count"]} ({attempt["percentage"]:.2f}%)</div>
+                    <div class="history-card-provider">Provider: {escape(attempt["provider"])}</div>
+                    <div class="history-card-date">Taken: {escape(attempt["created_at"])}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    else:
+        st.info("No exam attempts yet. Submit an exam to start building your history.")
+
+
+topbar_left, topbar_right = st.columns([6, 1.6], vertical_alignment="top")
+
+with topbar_right:
+    with st.popover(
+        st.session_state.display_name,
+        icon=":material/account_circle:",
+        use_container_width=True,
+    ):
+        st.markdown(
+            f"""
+            <div class="profile-popover">
+                <div class="profile-name">{safe_display_name}</div>
+                <div class="profile-email">{safe_user_email}</div>
+                <div class="profile-divider"></div>
+                <div class="profile-settings">Settings coming soon</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("View Exam History", key="view_exam_history", use_container_width=True):
+            show_exam_history_dialog()
+        if st.button("Logout", key="topbar_logout", use_container_width=True):
+            reset_exam_state()
+            st.session_state.logged_in = False
+            st.session_state.user_id = None
+            st.session_state.user_email = None
+            st.session_state.display_name = None
+            st.rerun()
+
 # Sidebar (Professional Exam Info)
 with st.sidebar:
 
@@ -176,30 +276,16 @@ with st.sidebar:
             st.error(error)
 
     st.markdown(
-        f"""
-        <div class="sidebar-meta">
-            <strong>Signed in as:</strong> {st.session_state.display_name}<br>
-            <strong>Email:</strong> {st.session_state.user_email}
+        """
+        <div class="sidebar-note">
+            <div class="sidebar-note-title">Instructions</div>
+            <div class="sidebar-note-list">- Select the best answer for each question</div>
+            <div class="sidebar-note-list">- Only one option is correct</div>
+            <div class="sidebar-note-list">- Click <strong>Submit Exam</strong> when finished</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-    if st.button("Logout"):
-        reset_exam_state()
-        st.session_state.logged_in = False
-        st.session_state.user_id = None
-        st.session_state.user_email = None
-        st.session_state.display_name = None
-        st.rerun()
-
-    st.markdown("""
-**Instructions**
-
-• Select the best answer for each question  
-• Only one option is correct  
-• Click **Submit Exam** when finished
-""")
 
 st.markdown(
     """
@@ -245,38 +331,6 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-
-    history_error = None
-    try:
-        recent_attempts = history_service.list_attempts(st.session_state.user_id, limit=5)
-    except RuntimeError as exc:
-        logger.warning(
-            "exam_history_load_failed user_id=%s error=%s",
-            st.session_state.user_id,
-            exc,
-        )
-        recent_attempts = []
-        history_error = str(exc)
-
-    with st.expander("Recent Exam History", expanded=False):
-        if history_error:
-            st.caption(history_error)
-            st.divider()
-        if recent_attempts:
-            for attempt in recent_attempts:
-                st.markdown(
-                    (
-                        f"**{attempt['topic']}**  \n"
-                        f"{attempt['exam_type']} | {attempt['level']}  \n"
-                        f"Score: {attempt['score']}/{attempt['question_count']} "
-                        f"({attempt['percentage']:.2f}%)  \n"
-                        f"Provider: {attempt['provider']}  \n"
-                        f"Taken: {attempt['created_at']}"
-                    )
-                )
-                st.divider()
-        else:
-            st.caption("No exam attempts yet.")
 
 st.markdown(
     """
@@ -562,11 +616,11 @@ if st.session_state.exam:
 
         if st.session_state.percentage >= 70:
 
-            st.success("🎉 Congratulations! You passed the AI Certification.")
+            st.success("Congratulations! You passed the AI Certification.")
             if not st.session_state.celebration_shown:
                 st.balloons()
                 st.session_state.celebration_shown = True
 
         else:
 
-            st.error("❌ Unfortunately you did not pass. Please try again.")
+            st.error("Unfortunately you did not pass. Please try again.")
